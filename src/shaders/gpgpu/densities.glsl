@@ -1,12 +1,9 @@
 #define M_PI 3.1415926535897932384626433832795
-float smoothingRadius = 10.0;
+uniform float uSmoothing;
 
 float smoothingKernel(float radius, float dst);
 float calculateDensity(vec3 position);
 vec4 particle;
-
-
-
 
 void main()
 {
@@ -31,12 +28,10 @@ float smoothingKernel(float radius, float dst){
 
         dw/dx = dw/df * df/dx
 
-        30/pi * s^5 * (s-x)^2
-
-
+        -30 (s-x)^2 /pi * s^5
     */
-
 }
+
 
 float calculateDensity(vec3 position){
     ivec2 texSize = textureSize(uParticles, 0);
@@ -48,7 +43,7 @@ float calculateDensity(vec3 position){
             vec4 particle = texture2D(uParticles, uv);
 
             float dst = distance(position, particle.xyz);
-            float influence = smoothingKernel(smoothingRadius, dst);
+            float influence = smoothingKernel(uSmoothing, dst);
             density += influence;
         }
     }

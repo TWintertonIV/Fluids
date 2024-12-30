@@ -7,6 +7,7 @@ import testFragmentShader from './shaders/fragment.glsl'
 import gpgpuParticlesShader from './shaders/gpgpu/particles.glsl'
 import gpgpuVelocitiesShader from './shaders/gpgpu/velocities.glsl'
 import gpgpuDensitiesShader from './shaders/gpgpu/densities.glsl'
+import gpgpuPressuresShader from './shaders/gpgpu/pressures.glsl'
 import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js'
 
 /**
@@ -51,6 +52,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 parameters.count = 100;
 parameters.scale = 1;
+parameters.smoothingRadius = 10.0;
+
 // parameters.gravity = -90;
 parameters.gravity = 0;
 parameters.bounds = new THREE.Vector3(150.0,150.0,150.0);
@@ -64,6 +67,8 @@ let velocitiesGeometry = null;
 let velocitiesMaterial = null;
 let densitiesGeometry = null; 
 let densitiesMaterial = null;
+let pressuresGeometry = null; 
+let pressuresMaterial = null;
 let deltaTime = 0;
 
 
@@ -72,6 +77,7 @@ const gpgpu = {}
 gpgpu.positions = null;
 gpgpu.velocities = null;
 gpgpu.densities = null;
+gpgpu.pressures = null;
 
 const gpgpuInit = () => {
     gpgpu.size = Math.ceil(Math.sqrt(parameters.count));
@@ -79,6 +85,7 @@ const gpgpuInit = () => {
     gpgpu.positionsTexture = gpgpu.computation.createTexture()
     gpgpu.velocityTexture = gpgpu.computation.createTexture()
     gpgpu.densityTexture = gpgpu.computation.createTexture()
+    gpgpu.pressureTexture = gpgpu.computation.createTexture()
 
     for(let i = 0; i < parameters.count; i++) {
         const i3 = i * 3;
@@ -98,14 +105,23 @@ const gpgpuInit = () => {
         gpgpu.densityTexture.image.data[i4 + 1] = 0;
         gpgpu.densityTexture.image.data[i4 + 2] = 0;
         gpgpu.densityTexture.image.data[i4 + 3] = 0;
+
+        gpgpu.pressureTexture.image.data[i4 + 0] = 0;
+        gpgpu.pressureTexture.image.data[i4 + 1] = 0;
+        gpgpu.pressureTexture.image.data[i4 + 2] = 0;
+        gpgpu.pressureTexture.image.data[i4 + 3] = 0;
     }
 
     gpgpu.particlesVariable = gpgpu.computation.addVariable('uParticles', gpgpuParticlesShader, gpgpu.positionsTexture);
     gpgpu.velocitiesVariable = gpgpu.computation.addVariable('uVelocities', gpgpuVelocitiesShader, gpgpu.velocityTexture);
     gpgpu.densityVariable = gpgpu.computation.addVariable('uDensities', gpgpuDensitiesShader, gpgpu.densityTexture);
+    gpgpu.pressureVariable = gpgpu.computation.addVariable('uPressures', gpgpuPressuresShader, gpgpu.pressureTexture);
+
+
     gpgpu.computation.setVariableDependencies(gpgpu.particlesVariable, [gpgpu.particlesVariable, gpgpu.velocitiesVariable]);
     gpgpu.computation.setVariableDependencies(gpgpu.velocitiesVariable, [gpgpu.particlesVariable, gpgpu.velocitiesVariable]);
     gpgpu.computation.setVariableDependencies(gpgpu.densityVariable, [gpgpu.particlesVariable, gpgpu.densityVariable]);
+    gpgpu.computation.setVariableDependencies(gpgpu.pressureVariable, [gpgpu.particlesVariable, gpgpu.densityVariable, gpgpu.pressureVariable]);
 
 
     gpgpu.particlesVariable.material.uniforms.uDeltaTime = { value: deltaTime };
@@ -117,8 +133,8 @@ const gpgpuInit = () => {
     gpgpu.velocitiesVariable.material.uniforms.uBounds = { value: parameters.bounds };
     gpgpu.velocitiesVariable.material.uniforms.uCount = { value: parameters.count };
 
-
-
+    gpgpu.densityVariable.material.uniforms.uSmoothing = { value: parameters.smoothingRadius };
+    gpgpu.pressureVariable.material.uniforms.uSmoothing = { value: parameters.smoothingRadius };
     const error = gpgpu.computation.init();
 
 	if ( error !== null ) {
@@ -129,6 +145,7 @@ const gpgpuInit = () => {
     positionsGpgpuDebug();
     velocitiesGpgpuDebug();
     densitiesGpgpuDebug();
+    pressuresGpgpuDebug();
 }
 
 
@@ -166,6 +183,19 @@ const densitiesGpgpuDebug = () => {
     gpgpu.densities.position.y = 3
 
     scene.add(gpgpu.densities)
+}
+
+const pressuresGpgpuDebug = () => {
+    pressuresGeometry = new THREE.PlaneGeometry(3, 3);
+    pressuresMaterial = new THREE.MeshBasicMaterial({ map: gpgpu.computation.getCurrentRenderTarget(gpgpu.pressureVariable).texture });
+    gpgpu.pressures = new THREE.Mesh(
+        pressuresGeometry,
+        pressuresMaterial
+    );
+    gpgpu.pressures.position.x = -3
+    gpgpu.pressures.position.y = 3
+
+    scene.add(gpgpu.pressures)
 }
 
 const calculateUVs = () => {
@@ -208,6 +238,11 @@ const generateGeometry = () => {
         densitiesGeometry.dispose();
         densitiesMaterial.dispose();
         scene.remove(gpgpu.densities);
+    }
+    if(gpgpu.pressures !== null) {
+        pressuresGeometry.dispose();
+        pressuresMaterial.dispose();
+        scene.remove(gpgpu.pressures);
     }
 
     
@@ -252,6 +287,7 @@ const generateGeometry = () => {
             uParticlesTexture: new THREE.Uniform(),
             uVelocitiesTexture: new THREE.Uniform(),
             uDensitiesTexture: new THREE.Uniform(),
+            uPressuresTexture: new THREE.Uniform(),
         },   
         vertexShader: testVertexShader,
         fragmentShader: testFragmentShader,
@@ -279,6 +315,8 @@ scene.add(edgesMesh);
 gui.add(parameters, 'count').min(1).max(100000).step(1).onFinishChange(generateGeometry);
 gui.add(parameters, 'scale').min(.001).max(10).step(.001).onChange(generateGeometry);
 gui.add(parameters, 'gravity').min(-60).max(60).step(.1);
+gui.add(parameters, 'smoothingRadius').min(0).max(100).step(.1);
+
 gui.add(parameters.bounds, 'x').min(-100).max(100).step(.5).onChange(function () {
     edgesMesh.scale.x = parameters.bounds.x / 15;
 });
@@ -321,13 +359,17 @@ const tick = () =>
     gpgpu.velocitiesVariable.material.uniforms.uBounds.value = parameters.bounds;
     gpgpu.velocitiesVariable.material.uniforms.uCount.value = parameters.count;
 
+    gpgpu.densityVariable.material.uniforms.uSmoothing.value = parameters.smoothingRadius;
+    gpgpu.pressureVariable.material.uniforms.uSmoothing.value = parameters.smoothingRadius;
+
 
 
     // Update controls
     controls.update()
     gpgpu.computation.compute();
     material.uniforms.uParticlesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.particlesVariable).texture
-    material.uniforms.uDensitiesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.particlesVariable).texture
+    material.uniforms.uDensitiesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.densityVariable).texture
+    material.uniforms.uPressuresTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.pressureVariable).texture
     material.uniforms.uVelocitiesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.velocitiesVariable).texture
 
     // Render
