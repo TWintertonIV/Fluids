@@ -3,10 +3,11 @@ uniform float uGravity;
 uniform vec3 uBounds;
 uniform int uCount;
 
-
 float damping = .75;
 
+
 vec4 resolveVelocity(vec4 particle, vec4 velocity);
+
 
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution;
@@ -14,12 +15,15 @@ void main() {
     vec4 particle = texture2D(uParticles, uv);
     vec4 velocity = texture2D(uVelocities, uv);
 
+
     velocity = resolveVelocity(particle, velocity);
 
     velocity.xyz += vec3(0.0, uGravity, 0.0) * uDeltaTime;
 
     gl_FragColor = velocity;
 }
+
+
 
 vec4 resolveVelocity(vec4 particle, vec4 velocity){
     vec3 halfBoundsSize = uBounds / 2.0;

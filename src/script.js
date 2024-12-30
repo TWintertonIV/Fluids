@@ -1,16 +1,21 @@
 import * as THREE from 'three'
+import Stats from 'three/examples/jsm/libs/stats.module.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import GUI from 'lil-gui'
 import testVertexShader from './shaders/vertex.glsl'
 import testFragmentShader from './shaders/fragment.glsl'
 import gpgpuParticlesShader from './shaders/gpgpu/particles.glsl'
 import gpgpuVelocitiesShader from './shaders/gpgpu/velocities.glsl'
+import gpgpuDensitiesShader from './shaders/gpgpu/densities.glsl'
 import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js'
 
 /**
  * Base
  */
 // Debug
+const stats = new Stats();
+stats.showPanel(0);
+document.body.appendChild(stats.dom);
 const gui = new GUI()
 
 /**
@@ -46,7 +51,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 parameters.count = 100;
 parameters.scale = 1;
-parameters.gravity = -90;
+// parameters.gravity = -90;
+parameters.gravity = 0;
 parameters.bounds = new THREE.Vector3(150.0,150.0,150.0);
 // parameters.grid = 10;
 let geometry = null;
@@ -56,6 +62,8 @@ let positionsGeometry = null;
 let positionsMaterial = null;
 let velocitiesGeometry = null; 
 let velocitiesMaterial = null;
+let densitiesGeometry = null; 
+let densitiesMaterial = null;
 let deltaTime = 0;
 
 
@@ -63,12 +71,14 @@ let deltaTime = 0;
 const gpgpu = {}
 gpgpu.positions = null;
 gpgpu.velocities = null;
+gpgpu.densities = null;
 
 const gpgpuInit = () => {
     gpgpu.size = Math.ceil(Math.sqrt(parameters.count));
     gpgpu.computation = new GPUComputationRenderer(gpgpu.size, gpgpu.size, renderer)
     gpgpu.positionsTexture = gpgpu.computation.createTexture()
     gpgpu.velocityTexture = gpgpu.computation.createTexture()
+    gpgpu.densityTexture = gpgpu.computation.createTexture()
 
     for(let i = 0; i < parameters.count; i++) {
         const i3 = i * 3;
@@ -82,13 +92,21 @@ const gpgpuInit = () => {
         gpgpu.velocityTexture.image.data[i4 + 0] = 0;
         gpgpu.velocityTexture.image.data[i4 + 1] = 0;
         gpgpu.velocityTexture.image.data[i4 + 2] = 0;
-        gpgpu.velocityTexture.image.data[i4 + 3] = 0
+        gpgpu.velocityTexture.image.data[i4 + 3] = 0;
+
+        gpgpu.densityTexture.image.data[i4 + 0] = 0;
+        gpgpu.densityTexture.image.data[i4 + 1] = 0;
+        gpgpu.densityTexture.image.data[i4 + 2] = 0;
+        gpgpu.densityTexture.image.data[i4 + 3] = 0;
     }
 
     gpgpu.particlesVariable = gpgpu.computation.addVariable('uParticles', gpgpuParticlesShader, gpgpu.positionsTexture);
     gpgpu.velocitiesVariable = gpgpu.computation.addVariable('uVelocities', gpgpuVelocitiesShader, gpgpu.velocityTexture);
+    gpgpu.densityVariable = gpgpu.computation.addVariable('uDensities', gpgpuDensitiesShader, gpgpu.densityTexture);
     gpgpu.computation.setVariableDependencies(gpgpu.particlesVariable, [gpgpu.particlesVariable, gpgpu.velocitiesVariable]);
     gpgpu.computation.setVariableDependencies(gpgpu.velocitiesVariable, [gpgpu.particlesVariable, gpgpu.velocitiesVariable]);
+    gpgpu.computation.setVariableDependencies(gpgpu.densityVariable, [gpgpu.particlesVariable, gpgpu.densityVariable]);
+
 
     gpgpu.particlesVariable.material.uniforms.uDeltaTime = { value: deltaTime };
     gpgpu.particlesVariable.material.uniforms.uGravity = { value: parameters.gravity };
@@ -110,6 +128,7 @@ const gpgpuInit = () => {
     
     positionsGpgpuDebug();
     velocitiesGpgpuDebug();
+    densitiesGpgpuDebug();
 }
 
 
@@ -134,6 +153,19 @@ const velocitiesGpgpuDebug = () => {
     );
     gpgpu.velocities.position.x = -3
     scene.add(gpgpu.velocities)
+}
+
+const densitiesGpgpuDebug = () => {
+    densitiesGeometry = new THREE.PlaneGeometry(3, 3);
+    densitiesMaterial = new THREE.MeshBasicMaterial({ map: gpgpu.computation.getCurrentRenderTarget(gpgpu.densityVariable).texture });
+    gpgpu.densities = new THREE.Mesh(
+        densitiesGeometry,
+        densitiesMaterial
+    );
+    gpgpu.densities.position.x = 3
+    gpgpu.densities.position.y = 3
+
+    scene.add(gpgpu.densities)
 }
 
 const calculateUVs = () => {
@@ -172,6 +204,11 @@ const generateGeometry = () => {
         positionsMaterial.dispose();
         scene.remove(gpgpu.positions);
     }
+    if(gpgpu.densities !== null) {
+        densitiesGeometry.dispose();
+        densitiesMaterial.dispose();
+        scene.remove(gpgpu.densities);
+    }
 
     
     geometry = new THREE.BufferGeometry();
@@ -191,9 +228,13 @@ const generateGeometry = () => {
         // velocities[i * 3 + 1] = 0;
         // velocities[i * 3 + 2] = 0;
 
-        positions[i * 3 + 0] = ((i % grid) - offset) * parameters.scale;    //x
-        positions[i * 3 + 1] = (Math.floor(i / grid) - offset) * parameters.scale;  //y
-        positions[i * 3 + 2] = 0;   //z
+        // positions[i * 3 + 0] = ((i % grid) - offset) * parameters.scale;    //x
+        // positions[i * 3 + 1] = (Math.floor(i / grid) - offset) * parameters.scale;  //y
+        // positions[i * 3 + 2] = 0;   //z
+
+        positions[i * 3 + 0] = Math.random() * 100 - 50;    //x
+        positions[i * 3 + 1] = Math.random() * 100 - 50;  //y
+        positions[i * 3 + 2] = Math.random() * 100 - 50;   //z
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     // geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
@@ -210,6 +251,7 @@ const generateGeometry = () => {
             },
             uParticlesTexture: new THREE.Uniform(),
             uVelocitiesTexture: new THREE.Uniform(),
+            uDensitiesTexture: new THREE.Uniform(),
         },   
         vertexShader: testVertexShader,
         fragmentShader: testFragmentShader,
@@ -268,8 +310,8 @@ window.addEventListener('resize', () =>
 const clock = new THREE.Clock()
 const tick = () =>
 {
+    stats.begin();
     deltaTime = clock.getDelta();
-    console.log(deltaTime);
     gpgpu.particlesVariable.material.uniforms.uDeltaTime.value = deltaTime;
     gpgpu.particlesVariable.material.uniforms.uGravity.value = parameters.gravity;
     gpgpu.particlesVariable.material.uniforms.uBounds.value = parameters.bounds;
@@ -285,10 +327,12 @@ const tick = () =>
     controls.update()
     gpgpu.computation.compute();
     material.uniforms.uParticlesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.particlesVariable).texture
+    material.uniforms.uDensitiesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.particlesVariable).texture
     material.uniforms.uVelocitiesTexture.value = gpgpu.computation.getCurrentRenderTarget(gpgpu.velocitiesVariable).texture
 
     // Render
     renderer.render(scene, camera)
+    stats.end();
 
     // Call tick again on the next frame
     window.requestAnimationFrame(tick)
