@@ -1,26 +1,27 @@
 #define M_PI 3.1415926535897932384626433832795
-uniform float uSmoothing;
 
+uniform float uSmoothing;
 float smoothingKernel(float radius, float dst);
 float calculateDensity(vec3 position);
 vec4 particle;
-
+vec4 predictedPosition;
 void main()
 {
     
     vec2 uv = gl_FragCoord.xy / resolution;
-    particle = texture(uParticles, uv);
+    particle = texture2D(uParticles, uv);
+    predictedPosition = texture2D(uPredicted, uv);
+    float density = calculateDensity(particle.xyz);
 
-    vec4 density = texture2D(uDensities, uv);
-    density.x = calculateDensity(particle.xyz);
-
-    gl_FragColor = vec4(density.x,density.x,density.x, 0.0);
+    gl_FragColor = vec4(density,density,density, 0.0);
 }
 
 
 float smoothingKernel(float radius, float dst){
-    float volume = M_PI * pow(radius, 5.0) / 10.0;
-    float value = max(0.0, radius - dst);
+    if(dst >= radius) return 0.0;
+
+    float volume = M_PI * pow(radius, 4.0) / 6.0;
+    float value = (radius - dst);
     return value * value * value / volume;
 
     /*

@@ -1,9 +1,10 @@
+#define EPSILON 0.0000001
 uniform float uDeltaTime;
 uniform float uGravity;
 uniform vec3 uBounds;
 uniform int uCount;
 
-float damping = .75;
+float damping = .50;
 
 
 vec4 resolveVelocity(vec4 particle, vec4 velocity);
@@ -14,12 +15,15 @@ void main() {
 
     vec4 particle = texture2D(uParticles, uv);
     vec4 velocity = texture2D(uVelocities, uv);
+    vec4 pressure = texture2D(uPressures, uv);
+    vec4 density = texture2D(uDensities, uv);
+    float densityValue = max(density.x, EPSILON);
 
+    vec3 pressureAcceleration = pressure.xyz / densityValue;
 
-    velocity = resolveVelocity(particle, velocity);
-
+    velocity.xyz += pressureAcceleration * uDeltaTime;
     velocity.xyz += vec3(0.0, uGravity, 0.0) * uDeltaTime;
-
+    velocity = resolveVelocity(particle, velocity);
     gl_FragColor = velocity;
 }
 
