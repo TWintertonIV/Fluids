@@ -4,7 +4,7 @@ uniform float uGravity;
 uniform vec3 uBounds;
 uniform int uCount;
 
-float damping = .50;
+float damping = .1;
 
 
 vec4 resolveVelocity(vec4 particle, vec4 velocity);

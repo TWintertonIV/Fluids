@@ -3,7 +3,7 @@
 uniform float uSmoothing;
 uniform float uTargetDensity;
 uniform float uPressureMultiplier;
-
+uniform vec3 uBounds;
 vec4 particle;
 vec4 predictedPosition;
 vec4 density;
@@ -25,8 +25,6 @@ void main()
 
     gradient = calculateGradient(particle.xyz, densityValue);
 
-    // gradient = clamp(gradient, vec3(-1000.0), vec3(1000.0));
-
 
     gl_FragColor = vec4(gradient, 1.0);
 }
@@ -38,7 +36,7 @@ float gradientKernel(float radius, float dst){
     float value = (radius - dst);
     float constant = -12.0 / (M_PI * pow(radius, 4.0));
 
-    return constant * value;
+    return constant * value * value;
 }
 
 
@@ -67,6 +65,22 @@ vec3 calculateGradient(vec3 position, float density){
 
         }
     }
+    
+
+    
+
+
+    // vec3 boundsDiff = abs(position.xyz) - (uBounds/2.0);
+    // vec3 dir = sign(position);
+
+    // float pressureConstant = calculatePressureFromDensity(density);
+    // float influenceX = gradientKernel(uSmoothing, boundsDiff.x);
+    // float influenceY = gradientKernel(uSmoothing, boundsDiff.y);
+    // float influenceZ = gradientKernel(uSmoothing, boundsDiff.z);
+
+    // gradient += pressureConstant * dir.x * influenceX / density;
+    // gradient += pressureConstant * dir.y * influenceY / density;
+    // gradient += pressureConstant * dir.z * influenceZ / density;
 
     return gradient;
 }

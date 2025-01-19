@@ -53,7 +53,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 parameters.count = 1024;
 parameters.scale = 1;
-parameters.smoothingRadius = 5.0;
+parameters.smoothingRadius = 4.0;
 
 // parameters.gravity = -90;
 parameters.gravity = 0;
@@ -149,6 +149,8 @@ const gpgpuInit = () => {
 
     gpgpu.pressureVariable.material.uniforms.uTargetDensity = { value: parameters.targetDensity };
     gpgpu.pressureVariable.material.uniforms.uPressureMultiplier = { value: parameters.pressureMultiplier };
+    gpgpu.pressureVariable.material.uniforms.uBounds = { value: parameters.bounds };
+
     
     const error = gpgpu.computation.init();
 
@@ -278,13 +280,13 @@ const generateGeometry = () => {
         // velocities[i * 3 + 1] = 0;
         // velocities[i * 3 + 2] = 0;
 
-        // positions[i * 3 + 0] = ((i % grid) - offset) * parameters.scale;    //x
-        // positions[i * 3 + 1] = (Math.floor(i / grid) - offset) * parameters.scale;  //y
-        // positions[i * 3 + 2] = 0;   //z
-
-        positions[i * 3 + 0] = Math.random() * 100 - 50;    //x
-        positions[i * 3 + 1] = Math.random() * 100 - 50;  //y
+        positions[i * 3 + 0] = ((i % grid) - offset) * parameters.scale;    //x
+        positions[i * 3 + 1] = (Math.floor(i / grid) - offset) * parameters.scale;  //y
         positions[i * 3 + 2] = 0;   //z
+
+        // positions[i * 3 + 0] = Math.random() * 100 - 50;    //x
+        // positions[i * 3 + 1] = Math.random() * 100 - 50;  //y
+        // positions[i * 3 + 2] = Math.random() * 100 - 50;   //z
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     // geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
@@ -338,13 +340,13 @@ gui.add(parameters, 'targetDensity').min(-100).max(100).step(.1);
 
 
 gui.add(parameters.bounds, 'x').min(-100).max(100).step(.5).onChange(function () {
-    edgesMesh.scale.x = parameters.bounds.x / 15;
+    edgesMesh.scale.x = parameters.bounds.x / 150;
 });
 gui.add(parameters.bounds, 'y').min(-100).max(100).step(.5).onChange(function () {
-    edgesMesh.scale.y = parameters.bounds.y / 15;
+    edgesMesh.scale.y = parameters.bounds.y / 150;
 });
 gui.add(parameters.bounds, 'z').min(-100).max(100).step(.5).onChange(function () {
-    edgesMesh.scale.z = parameters.bounds.z / 15;
+    edgesMesh.scale.z = parameters.bounds.z / 150;
 });
 
 // gui.add(parameters, 'grid').min(2).max(1000).step(1).onChange(generateGeometry);
@@ -383,6 +385,8 @@ const tick = () =>
     gpgpu.pressureVariable.material.uniforms.uSmoothing.value = parameters.smoothingRadius;
     gpgpu.pressureVariable.material.uniforms.uPressureMultiplier.value = parameters.pressureMultiplier;
     gpgpu.pressureVariable.material.uniforms.uTargetDensity.value = parameters.targetDensity;
+    gpgpu.pressureVariable.material.uniforms.uBounds.value = parameters.bounds;
+
 
 
 
